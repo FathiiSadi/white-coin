@@ -72,6 +72,20 @@ export const api = {
         if (done) break;
         
         const chunk = decoder.decode(value, { stream: true });
+        
+        // Check if OpenAI returned an error JSON instead of a stream
+        if (chunk.includes('"error":')) {
+            try {
+                const parsedError = JSON.parse(chunk);
+                throw new Error(parsedError.error?.message || 'OpenAI API Error');
+            } catch (e) {
+                // If it's not valid JSON, ignore or throw generic
+                if (e.message !== 'Unexpected token') {
+                   console.error("OpenAI Error:", chunk);
+                }
+            }
+        }
+
         // The chunk might contain multiple "data: { ... }" lines from OpenAI
         const lines = chunk.split('\n');
         for (const line of lines) {

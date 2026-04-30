@@ -16,8 +16,12 @@ export const FinancialPlan = () => {
   const [status, setStatus] = useState<'loading' | 'no_plan' | 'clarifying' | 'generating' | 'locked'>('loading');
   const [isStreaming, setIsStreaming] = useState(false);
 
+  const loadedRef = React.useRef(false);
   useEffect(() => {
-    loadPlan();
+    if (!loadedRef.current) {
+      loadedRef.current = true;
+      loadPlan();
+    }
   }, []);
 
   const loadPlan = async () => {
@@ -41,7 +45,7 @@ export const FinancialPlan = () => {
   const startClarification = async () => {
     setIsStreaming(true);
     let currentContent = '';
-    setMessages([{ role: 'ai', content: '' }]);
+    setMessages([{ role: 'assistant', content: '' }]);
     
     try {
       await api.streamPost('/financial-plan/clarify', {}, (chunk) => {
@@ -92,7 +96,7 @@ export const FinancialPlan = () => {
           setPlanData(currentPlanData);
         });
 
-        const newHistory = [...updatedMessages, { role: 'ai', content: 'I have generated your financial plan based on your input. It is now locked. You can ask me to modify it.' }];
+        const newHistory = [...updatedMessages, { role: 'assistant', content: 'I have generated your financial plan based on your input. It is now locked. You can ask me to modify it.' }];
         setMessages(newHistory);
         
         await savePlan(currentPlanData, newHistory);
@@ -102,14 +106,14 @@ export const FinancialPlan = () => {
         setPlanData(''); 
         let currentPlanData = '';
         
-        setMessages([...updatedMessages, { role: 'ai', content: 'Updating your plan...' }]);
+        setMessages([...updatedMessages, { role: 'assistant', content: 'Updating your plan...' }]);
         
         await api.streamPost('/financial-plan/chat', { instruction: userMessage.content }, (chunk) => {
           currentPlanData += chunk;
           setPlanData(currentPlanData);
         });
 
-        const finalHistory = [...updatedMessages, { role: 'ai', content: 'I have updated your financial plan.' }];
+        const finalHistory = [...updatedMessages, { role: 'assistant', content: 'I have updated your financial plan.' }];
         setMessages(finalHistory);
         await savePlan(currentPlanData, finalHistory);
       }
