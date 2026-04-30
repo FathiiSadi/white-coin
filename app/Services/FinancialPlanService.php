@@ -36,19 +36,15 @@ class FinancialPlanService
         return "You are an expert financial advisor. Here is the user's financial data: \n" . $context;
     }
 
-    public function streamChatCompletion($messages, $jsonMode = false)
+    public function streamChatCompletion($messages)
     {
-        return function () use ($messages, $jsonMode) {
+        return function () use ($messages) {
             $ch = curl_init('https://api.openai.com/v1/chat/completions');
             $data = [
-                'model' => 'gpt-3.5-turbo-1106',
+                'model' => 'gpt-3.5-turbo',
                 'messages' => $messages,
                 'stream' => true,
             ];
-
-            if ($jsonMode) {
-                $data['response_format'] = ['type' => 'json_object'];
-            }
 
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -106,16 +102,16 @@ class FinancialPlanService
     public function generateFinancialPlan(User $user, $clarificationHistory)
     {
         $messages = [
-            ['role' => 'system', 'content' => $this->getSystemPrompt($user) . "\n\nINSTRUCTIONS: You must respond ONLY with a valid JSON object representing the financial plan. Do not include markdown formatting like ```json. The JSON must match exactly this structure:\n{\n  \"netWorth\": { \"assets\": number, \"liabilities\": number, \"total\": number },\n  \"cashFlow\": { \"income\": number, \"expenses\": number, \"surplus\": number, \"savingsRate\": number },\n  \"goals\": [ { \"name\": string, \"target\": number, \"current\": number, \"monthly\": number, \"progress\": number } ],\n  \"actions\": [ { \"title\": string, \"description\": string } ]\n}"],
+            ['role' => 'system', 'content' => $this->getSystemPrompt($user)],
         ];
 
         foreach ($clarificationHistory as $msg) {
             $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
         }
 
-        $messages[] = ['role' => 'user', 'content' => 'Generate the final comprehensive financial plan based on all the data and clarifications. Output ONLY valid JSON.'];
+        $messages[] = ['role' => 'user', 'content' => 'Based on my data and the clarifications, generate a comprehensive financial plan. Use markdown and the following sections: Net Worth Summary, Cash Flow & Budget, Savings Plan, Goal Tracker, Action Plan & Priorities.'];
 
-        return response()->stream($this->streamChatCompletion($messages, true), 200, [
+        return response()->stream($this->streamChatCompletion($messages), 200, [
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
             'Content-Type' => 'text/event-stream',
@@ -126,11 +122,11 @@ class FinancialPlanService
     {
         $user = $plan->user;
         $messages = [
-            ['role' => 'system', 'content' => $this->getSystemPrompt($user) . "\n\nINSTRUCTIONS: You must respond ONLY with a valid JSON object representing the financial plan. Do not include markdown formatting like ```json. The JSON must match exactly this structure:\n{\n  \"netWorth\": { \"assets\": number, \"liabilities\": number, \"total\": number },\n  \"cashFlow\": { \"income\": number, \"expenses\": number, \"surplus\": number, \"savingsRate\": number },\n  \"goals\": [ { \"name\": string, \"target\": number, \"current\": number, \"monthly\": number, \"progress\": number } ],\n  \"actions\": [ { \"title\": string, \"description\": string } ]\n}"],
-            ['role' => 'user', 'content' => "Here is my current financial plan (JSON):\n" . json_encode($plan->plan_data) . "\n\nInstruction for modification: {$instruction}\nRewrite the ENTIRE financial plan incorporating this modification. Output ONLY valid JSON."],
+            ['role' => 'system', 'content' => $this->getSystemPrompt($user)],
+            ['role' => 'user', 'content' => "Here is my current financial plan:\n" . $plan->plan_data . "\n\nInstruction for modification: {$instruction}\nRewrite the ENTIRE financial plan incorporating this modification. Use the exact same formatting and markdown sections as the original."],
         ];
 
-        return response()->stream($this->streamChatCompletion($messages, true), 200, [
+        return response()->stream($this->streamChatCompletion($messages), 200, [
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
             'Content-Type' => 'text/event-stream',

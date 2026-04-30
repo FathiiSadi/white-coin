@@ -57,6 +57,7 @@ export const FinancialPlan = () => {
           return newMessages;
         });
       });
+      await savePlan('', [{ role: 'assistant', content: currentContent }], 'clarifying');
     } catch (e) {
       console.error(e);
     } finally {
@@ -64,13 +65,13 @@ export const FinancialPlan = () => {
     }
   };
 
-  const savePlan = async (finalPlan: string, finalHistory: Message[]) => {
+  const savePlan = async (finalPlan: string, finalHistory: Message[], currentStatus: string) => {
     try {
       await api.post('/financial-plan/save', {
         plan_data: finalPlan,
-        history: finalHistory
+        history: finalHistory,
+        status: currentStatus
       });
-      setStatus('locked');
     } catch (e) {
       console.error("Failed to save plan", e);
     }
@@ -102,37 +103,45 @@ export const FinancialPlan = () => {
                 return newMessages;
               });
             });
+            
+            const savedHistory = [...updatedMessages, { role: 'assistant', content: currentContent }];
+            await savePlan('', savedHistory, 'clarifying');
+            
         } else {
             setPlanData('');
             setStatus('generating');
             let currentPlanData = '';
             
-            setMessages([...updatedMessages, { role: 'assistant', content: 'Thank you! I have all the information I need. I am crunching the numbers to generate your comprehensive financial dashboard now...' }]);
+            setMessages([...updatedMessages, { role: 'assistant', content: 'Thank you! I have all the information I need. I am generating your comprehensive financial plan now...' }]);
+            await savePlan('', [...updatedMessages, { role: 'assistant', content: 'Thank you! I have all the information I need. I am generating your comprehensive financial plan now...' }], 'generating');
             
             await api.streamPost('/financial-plan/answer', { history: updatedMessages }, (chunk) => {
               currentPlanData += chunk;
               setPlanData(currentPlanData);
             });
 
-            const newHistory = [...updatedMessages, { role: 'assistant', content: 'I have generated your financial dashboard. It is now locked. You can ask me to modify any numbers, goals, or targets!' }];
+            const newHistory = [...updatedMessages, { role: 'assistant', content: 'I have generated your financial plan. It is now locked. You can ask me to modify any numbers or goals!' }];
             setMessages(newHistory);
             
-            await savePlan(currentPlanData, newHistory);
+            setStatus('locked');
+            await savePlan(currentPlanData, newHistory, 'locked');
         }
       } else if (status === 'locked' || status === 'generating') {
         setPlanData(''); 
         let currentPlanData = '';
         
-        setMessages([...updatedMessages, { role: 'assistant', content: 'Updating your financial dashboard...' }]);
+        setMessages([...updatedMessages, { role: 'assistant', content: 'Updating your financial plan...' }]);
+        await savePlan('', [...updatedMessages, { role: 'assistant', content: 'Updating your financial plan...' }], 'generating');
         
         await api.streamPost('/financial-plan/chat', { instruction: userMessage.content }, (chunk) => {
           currentPlanData += chunk;
           setPlanData(currentPlanData);
         });
 
-        const finalHistory = [...updatedMessages, { role: 'assistant', content: 'I have updated your dashboard successfully.' }];
+        const finalHistory = [...updatedMessages, { role: 'assistant', content: 'I have updated your plan successfully.' }];
         setMessages(finalHistory);
-        await savePlan(currentPlanData, finalHistory);
+        setStatus('locked');
+        await savePlan(currentPlanData, finalHistory, 'locked');
       }
     } catch (e) {
       console.error(e);

@@ -86,17 +86,18 @@ class FinancialPlanController extends Controller
     public function savePlan(Request $request)
     {
         $request->validate([
-            'plan_data' => 'required',
+            'plan_data' => 'nullable|string',
             'history' => 'required|array',
+            'status' => 'required|string'
         ]);
 
         $user = $request->user();
         $plan = $user->financialPlan()->updateOrCreate(
             ['user_id' => $user->id],
             [
-                'plan_data' => $request->input('plan_data'),
+                'plan_data' => $request->input('plan_data', ''),
                 'clarification_history' => $request->input('history'),
-                'status' => 'locked',
+                'status' => $request->input('status'),
             ]
         );
 
