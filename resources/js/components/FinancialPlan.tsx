@@ -40,13 +40,16 @@ export const FinancialPlan = () => {
 
   const startClarification = async () => {
     setIsStreaming(true);
+    let currentContent = '';
     setMessages([{ role: 'ai', content: '' }]);
     
     try {
       await api.streamPost('/financial-plan/clarify', {}, (chunk) => {
+        currentContent += chunk;
         setMessages(prev => {
           const newMessages = [...prev];
-          newMessages[newMessages.length - 1].content += chunk;
+          const lastIndex = newMessages.length - 1;
+          newMessages[lastIndex] = { ...newMessages[lastIndex], content: currentContent };
           return newMessages;
         });
       });

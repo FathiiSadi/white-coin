@@ -72,7 +72,7 @@ class FinancialPlanService
     {
         $messages = [
             ['role' => 'system', 'content' => $this->getSystemPrompt($user)],
-            ['role' => 'user', 'content' => 'Review my financial data and ask me 1 or 2 clarification questions to gather any missing information needed to create a comprehensive financial plan. Be brief and only ask questions.'],
+            ['role' => 'user', 'content' => 'Review my financial data and ask me 1 or 2 clarification questions to gather any missing information needed to create a comprehensive financial plan. Please always start with a friendly "Hello!" before asking the questions. Keep it brief and friendly.'],
         ];
 
         return response()->stream($this->streamChatCompletion($messages), 200, [
