@@ -59,7 +59,17 @@ A premium, internationalized financial management platform built with Laravel, R
    ```
 
 ### Step 3: Access the App
-Open your browser and navigate to `http://localhost:8000`.
+To run the project, you need **two** servers running simultaneously:
+1. **The Laravel Server**: `php artisan serve` (runs on `http://localhost:8000`)
+2. **The Vite Server**: `npm run dev` (runs on `http://localhost:5173`)
+
+**Crucial**: Always open your browser at **`http://localhost:8000`**. The Vite URL (`:5173`) is only for assets and will not show your website.
+
+Alternatively, run both with a single command:
+```bash
+npm start
+```
+Then visit `http://localhost:8000`.
 
 ## 🌐 Internationalization
 The app supports English and Arabic. Toggle the language in the Profile Settings. The UI will automatically switch layout direction (LTR/RTL) and apply appropriate typography.

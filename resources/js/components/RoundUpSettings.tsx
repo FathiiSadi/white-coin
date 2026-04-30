@@ -1,17 +1,49 @@
-import React, { useState } from 'react';
-import { Zap, ShieldCheck, TrendingUp, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Zap, ShieldCheck, TrendingUp, DollarSign, Save, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from '../lib/LanguageContext';
 
 export const RoundUpSettings = () => {
   const { t } = useTranslation();
-  const [enabled, setEnabled] = useState(true);
-  const [roundTo, setRoundTo] = useState('1');
+  const [enabled, setEnabled] = useState(() => localStorage.getItem('roundup_enabled') !== 'false');
+  const [roundTo, setRoundTo] = useState(() => localStorage.getItem('roundup_amount') || '1');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    setSaving(true);
+    // Simulate API call
+    setTimeout(() => {
+      localStorage.setItem('roundup_enabled', enabled.toString());
+      localStorage.setItem('roundup_amount', roundTo);
+      setSaving(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }, 800);
+  };
 
   return (
     <div className="max-w-4xl space-y-8">
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('roundup_title')}</h1>
-        <p className="text-slate-500 font-medium mt-1">{t('roundup_desc')}</p>
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('roundup_title')}</h1>
+          <p className="text-slate-500 font-medium mt-1">{t('roundup_desc')}</p>
+        </div>
+        <button 
+          onClick={handleSave}
+          disabled={saving}
+          className={`px-8 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 shadow-lg ${
+            saved ? 'bg-green-500 text-white shadow-green-500/20' : 'bg-primary text-white shadow-primary/20 hover:bg-primary-hover'
+          }`}
+        >
+          {saving ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : saved ? (
+            <CheckCircle2 size={20} />
+          ) : (
+            <Save size={20} />
+          )}
+          <span>{saving ? 'Saving...' : saved ? 'Saved!' : t('save')}</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -90,7 +122,9 @@ export const RoundUpSettings = () => {
                 <h2 className="text-lg font-bold text-slate-900">{t('projected_savings')}</h2>
              </div>
              <div className="space-y-2">
-                <h3 className="text-4xl font-black text-slate-900">${(parseFloat(roundTo || '0') * 45).toFixed(2)}</h3>
+                <h3 className="text-4xl font-black text-slate-900">
+                  ${(parseFloat(roundTo || '0') * 0.45 * 45).toFixed(2)}
+                </h3>
                 <p className="text-sm font-bold text-slate-400 uppercase tracking-tight">{t('estimated_per_month')}</p>
              </div>
              <div className="mt-8 pt-8 border-t border-slate-50">

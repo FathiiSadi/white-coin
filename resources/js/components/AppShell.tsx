@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, 
@@ -30,7 +30,20 @@ interface AppShellProps {
 export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShellProps) => {
   const { t, language } = useTranslation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || 'James Sterling');
+  const [userImage, setUserImage] = useState(() => localStorage.getItem('user_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop');
+
   const isSettings = activeTab.startsWith('settings');
+
+  // Watch for storage changes
+  useEffect(() => {
+    const handleStorage = () => {
+        setUserName(localStorage.getItem('user_name') || 'James Sterling');
+        setUserImage(localStorage.getItem('user_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop');
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const mainMenuItems = [
     { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
@@ -87,11 +100,18 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
       </nav>
 
       <div className="p-6 border-t border-slate-50">
+        <div className="flex items-center gap-3 mb-6 p-2 rounded-2xl bg-slate-50">
+            <img src={userImage} className="w-8 h-8 rounded-full border border-white" alt="User" />
+            <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate">{userName}</p>
+                <p className="text-[10px] text-slate-400 font-medium">Free Plan</p>
+            </div>
+        </div>
         <button 
           onClick={onLogout}
-          className="flex items-center gap-3 text-slate-400 hover:text-red-500 transition-colors text-sm font-medium"
+          className="flex items-center gap-3 text-slate-400 hover:text-red-500 transition-colors text-sm font-medium w-full"
         >
-          <User size={18} />
+          <X size={18} />
           <span>{t('sign_out')}</span>
         </button>
       </div>
@@ -191,11 +211,11 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
             </button>
             <div className={`flex items-center gap-3 ${language === 'Arabic' ? 'pr-6 border-r' : 'pl-6 border-l'} border-slate-100`}>
               <div className={`hidden sm:block ${language === 'Arabic' ? 'text-left' : 'text-right'}`}>
-                <p className="text-sm font-bold text-slate-900 leading-none">James Sterling</p>
+                <p className="text-sm font-bold text-slate-900 leading-none">{userName}</p>
                 <p className="text-[10px] font-bold text-primary uppercase tracking-tighter mt-1">Premium Member</p>
               </div>
               <img 
-                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop" 
+                src={userImage} 
                 alt="Avatar" 
                 className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
               />

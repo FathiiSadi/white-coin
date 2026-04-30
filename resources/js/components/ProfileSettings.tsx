@@ -26,7 +26,8 @@ export const ProfileSettings = () => {
     phone: '',
     language: currentLang,
     currency: 'SAR (﷼)',
-    theme: 'light'
+    theme: 'light',
+    imageUrl: localStorage.getItem('user_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop'
   });
 
   useEffect(() => {
@@ -40,12 +41,13 @@ export const ProfileSettings = () => {
       const data = await api.get('/user');
       setUser(data);
       setFormData({
-        name: data.name || '',
+        name: localStorage.getItem('user_name') || data.name || '',
         email: data.email || '',
         phone: data.phone || '',
         language: (data.language as 'English' | 'Arabic') || currentLang,
         currency: data.currency || 'SAR (﷼)',
-        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+        imageUrl: localStorage.getItem('user_image') || data.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop'
       });
     } catch (err) {
       console.error('Failed to fetch profile', err);
@@ -87,6 +89,11 @@ export const ProfileSettings = () => {
       // Update global language if changed
       setGlobalLang(formData.language as 'English' | 'Arabic');
       
+      // Update localStorage for navbar
+      localStorage.setItem('user_name', formData.name);
+      localStorage.setItem('user_image', formData.imageUrl);
+      window.dispatchEvent(new Event('storage')); // Trigger update in other components
+
       setStatus({ type: 'success', message: 'Your profile has been updated successfully.' });
       
       // Clear success message after 3 seconds
@@ -153,7 +160,7 @@ export const ProfileSettings = () => {
           <div className="flex items-center gap-4">
              <div className="relative group">
                <img 
-                 src={user?.avatar || "/assets/logo.png"} 
+                 src={formData.imageUrl} 
                  className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-50 shadow-sm"
                />
                <button className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
@@ -164,6 +171,23 @@ export const ProfileSettings = () => {
         </div>
 
         <div className="p-10 space-y-10">
+          <div className="space-y-4">
+            <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest pl-4 block">Profile Image URL</label>
+            <div className="flex gap-4">
+               <input 
+                 className="flex-1 bg-[#F8FAFB] border-2 border-transparent focus:border-primary/20 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 transition-all outline-none"
+                 value={formData.imageUrl}
+                 onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                 placeholder="https://images.unsplash.com/..."
+               />
+               <button 
+                 onClick={() => setFormData({...formData, imageUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&auto=format&fit=crop'})}
+                 className="px-6 py-4 bg-slate-100 rounded-2xl text-xs font-bold hover:bg-slate-200 transition-colors"
+               >
+                 Use Default
+               </button>
+            </div>
+          </div>
           {/* Form Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
             <div className="space-y-2">
