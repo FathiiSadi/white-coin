@@ -14,7 +14,7 @@ import {
   Target,
   DollarSign
 } from 'lucide-react';
-import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip } from 'recharts';
 import { api } from '../lib/api';
 import { useTranslation } from '../lib/LanguageContext';
 
@@ -390,7 +390,7 @@ export const Dashboard = ({ setActiveTab }: DashboardProps) => {
       {/* Categories and Transactions Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         {/* Categories Chart */}
-        <div className="lg:col-span-2 bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-[32px] p-6 sm:p-8 border border-slate-100 shadow-sm flex flex-col">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-xl font-bold text-slate-900">{t('overall_expenses') || 'Overall Expenses'}</h2>
             <div className="flex items-center gap-1 text-[10px] font-black text-slate-400 uppercase tracking-tighter bg-slate-50 px-3 py-1 rounded-full">
@@ -398,42 +398,38 @@ export const Dashboard = ({ setActiveTab }: DashboardProps) => {
                Under 60% Target
             </div>
           </div>
-          <div className="h-64 relative">
+          <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <RePieChart>
-                <Pie
-                  data={dynamicCategoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={90}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
+              <BarChart data={dynamicCategoryData} layout="vertical" margin={{ left: 10, right: 30, top: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }}
+                  width={90}
+                />
+                <ReTooltip 
+                   cursor={{ fill: '#f8fafb' }}
+                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={16}>
                   {dynamicCategoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                </Pie>
-                <Tooltip />
-              </RePieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-black text-slate-900">
-                ${stats.find(s => s.id === 'expenses')?.value.replace('$', '')}
-              </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('monthly') || 'Monthly'}</span>
-            </div>
           </div>
-          <div className="mt-8 grid grid-cols-2 gap-y-4 gap-x-4 sm:gap-x-8">
-            {dynamicCategoryData.map((cat, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                  <span className="text-[12px] sm:text-sm font-medium text-slate-500 truncate max-w-[80px] sm:max-w-none">{cat.name}</span>
-                </div>
-                <span className="text-[12px] sm:text-sm font-bold text-slate-900">{cat.value}%</span>
-              </div>
-            ))}
+          <div className="mt-6 pt-6 border-t border-slate-50">
+             <div className="flex justify-between items-center">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('total_spending') || 'Total Spending'}</p>
+                <p className="text-2xl font-black text-slate-900">
+                  ${stats.find(s => s.id === 'expenses')?.value.replace('$', '')}
+                </p>
+             </div>
           </div>
         </div>
 

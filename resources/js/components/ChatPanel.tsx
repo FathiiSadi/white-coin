@@ -21,7 +21,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, input, setInput,
       <div className="p-6 border-b border-slate-50 flex items-center justify-between">
          <div className="flex items-center gap-4">
             <div className="relative">
-              <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=100&auto=format&fit=crop" className="w-12 h-12 rounded-full object-cover" />
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center overflow-hidden border border-slate-100 shadow-sm p-1">
+                 <img src="/assets/logo.png" alt="Logo" className="w-full h-full object-contain" />
+              </div>
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full" />
             </div>
             <div>

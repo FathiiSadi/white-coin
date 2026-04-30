@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Http;
 
 class FinancialPlanService
 {
-    protected $apiKey;
+    protected mixed $apiKey;
 
     public function __construct()
     {

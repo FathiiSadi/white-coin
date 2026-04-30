@@ -16,6 +16,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { api } from '../lib/api';
 import { useTranslation } from '../lib/LanguageContext';
 
 type Tab = 'dashboard' | 'plan' | 'settings_roundup' | 'settings_profile' | 'settings_dependents' | 'settings_income';
@@ -30,15 +31,32 @@ interface AppShellProps {
 export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShellProps) => {
   const { t, language } = useTranslation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || 'James Sterling');
+  const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || 'Financial Explorer');
   const [userImage, setUserImage] = useState(() => localStorage.getItem('user_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop');
 
   const isSettings = activeTab.startsWith('settings');
 
-  // Watch for storage changes
   useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const user = await api.get('/user');
+        if (user && user.name) {
+          setUserName(user.name);
+          localStorage.setItem('user_name', user.name);
+          if (user.avatar) {
+              setUserImage(user.avatar);
+              localStorage.setItem('user_image', user.avatar);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync user data', err);
+      }
+    };
+
+    fetchUserData();
+
     const handleStorage = () => {
-        setUserName(localStorage.getItem('user_name') || 'James Sterling');
+        setUserName(localStorage.getItem('user_name') || 'Financial Explorer');
         setUserImage(localStorage.getItem('user_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop');
     };
     window.addEventListener('storage', handleStorage);
@@ -101,7 +119,16 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
 
       <div className="p-6 border-t border-slate-50">
         <div className="flex items-center gap-3 mb-6 p-2 rounded-2xl bg-slate-50">
-            <img src={userImage} className="w-8 h-8 rounded-full border border-white" alt="User" />
+            <div className="w-8 h-8 rounded-full border border-white overflow-hidden bg-white flex items-center justify-center">
+                <img 
+                  src={userImage} 
+                  className="w-full h-full object-cover" 
+                  alt="User" 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/assets/logo.png';
+                  }}
+                />
+            </div>
             <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-900 truncate">{userName}</p>
                 <p className="text-[10px] text-slate-400 font-medium">Free Plan</p>
@@ -214,11 +241,16 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
                 <p className="text-sm font-bold text-slate-900 leading-none">{userName}</p>
                 <p className="text-[10px] font-bold text-primary uppercase tracking-tighter mt-1">Premium Member</p>
               </div>
-              <img 
-                src={userImage} 
-                alt="Avatar" 
-                className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
-              />
+              <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-50 flex items-center justify-center">
+                <img 
+                  src={userImage} 
+                  alt="Avatar" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/assets/logo.png';
+                  }}
+                />
+              </div>
             </div>
           </div>
         </header>

@@ -30,6 +30,33 @@ export const ProfileSettings = () => {
     imageUrl: localStorage.getItem('user_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop'
   });
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const defaultAvatars = [
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Jasper',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver',
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=Milo'
+  ];
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setStatus({ type: 'error', message: 'Image size must be less than 2MB' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData({ ...formData, imageUrl: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
     fetchProfile();
     const isDark = document.documentElement.classList.contains('dark');
@@ -47,7 +74,7 @@ export const ProfileSettings = () => {
         language: (data.language as 'English' | 'Arabic') || currentLang,
         currency: data.currency || 'SAR (﷼)',
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-        imageUrl: localStorage.getItem('user_image') || data.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop'
+        imageUrl: localStorage.getItem('user_image') || data.avatar || defaultAvatars[0]
       });
     } catch (err) {
       console.error('Failed to fetch profile', err);
@@ -163,28 +190,54 @@ export const ProfileSettings = () => {
                  src={formData.imageUrl} 
                  className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-50 shadow-sm"
                />
-               <button className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+               <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+               >
                   <Camera size={18} />
                </button>
+               <input 
+                 type="file"
+                 ref={fileInputRef}
+                 className="hidden"
+                 accept="image/*"
+                 onChange={handleFileChange}
+               />
              </div>
           </div>
         </div>
 
         <div className="p-10 space-y-10">
-          <div className="space-y-4">
-            <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest pl-4 block">Profile Image URL</label>
-            <div className="flex gap-4">
-               <input 
-                 className="flex-1 bg-[#F8FAFB] border-2 border-transparent focus:border-primary/20 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 transition-all outline-none"
-                 value={formData.imageUrl}
-                 onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                 placeholder="https://images.unsplash.com/..."
-               />
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-black uppercase text-zinc-400 tracking-widest pl-4 block">Choose your Avatar</label>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="text-primary text-[11px] font-black uppercase tracking-widest hover:underline"
+              >
+                Upload Photo
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-4 pl-4">
+               {defaultAvatars.map((avatar, idx) => (
+                 <button
+                   key={idx}
+                   onClick={() => setFormData({ ...formData, imageUrl: avatar })}
+                   className={`w-14 h-14 rounded-2xl border-2 transition-all overflow-hidden p-1 ${
+                     formData.imageUrl === avatar ? 'border-primary bg-primary/5 scale-110 shadow-lg' : 'border-slate-100 hover:border-slate-200 bg-slate-50'
+                   }`}
+                 >
+                   <img src={avatar} className="w-full h-full object-contain" alt={`Avatar ${idx}`} />
+                 </button>
+               ))}
                <button 
-                 onClick={() => setFormData({...formData, imageUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&auto=format&fit=crop'})}
-                 className="px-6 py-4 bg-slate-100 rounded-2xl text-xs font-bold hover:bg-slate-200 transition-colors"
+                 onClick={() => setFormData({ ...formData, imageUrl: '/assets/logo.png' })}
+                 className={`w-14 h-14 rounded-2xl border-2 transition-all overflow-hidden p-2 flex items-center justify-center ${
+                   formData.imageUrl === '/assets/logo.png' ? 'border-primary bg-primary/5 scale-110 shadow-lg' : 'border-slate-100 hover:border-slate-200 bg-slate-50'
+                 }`}
                >
-                 Use Default
+                 <img src="/assets/logo.png" className="w-full h-full object-contain" alt="Logo" />
                </button>
             </div>
           </div>
