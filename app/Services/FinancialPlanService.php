@@ -36,15 +36,19 @@ class FinancialPlanService
         return "You are an expert financial advisor. Here is the user's financial data: \n" . $context;
     }
 
-    public function streamChatCompletion($messages)
+    public function streamChatCompletion($messages, $jsonMode = false)
     {
-        return function () use ($messages) {
+        return function () use ($messages, $jsonMode) {
             $ch = curl_init('https://api.openai.com/v1/chat/completions');
             $data = [
-                'model' => 'gpt-3.5-turbo',
+                'model' => 'gpt-3.5-turbo-1106',
                 'messages' => $messages,
                 'stream' => true,
             ];
+
+            if ($jsonMode) {
+                $data['response_format'] = ['type' => 'json_object'];
+            }
 
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -111,7 +115,7 @@ class FinancialPlanService
 
         $messages[] = ['role' => 'user', 'content' => 'Generate the final comprehensive financial plan based on all the data and clarifications. Output ONLY valid JSON.'];
 
-        return response()->stream($this->streamChatCompletion($messages), 200, [
+        return response()->stream($this->streamChatCompletion($messages, true), 200, [
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
             'Content-Type' => 'text/event-stream',
@@ -126,7 +130,7 @@ class FinancialPlanService
             ['role' => 'user', 'content' => "Here is my current financial plan (JSON):\n" . json_encode($plan->plan_data) . "\n\nInstruction for modification: {$instruction}\nRewrite the ENTIRE financial plan incorporating this modification. Output ONLY valid JSON."],
         ];
 
-        return response()->stream($this->streamChatCompletion($messages), 200, [
+        return response()->stream($this->streamChatCompletion($messages, true), 200, [
             'Cache-Control' => 'no-cache',
             'X-Accel-Buffering' => 'no',
             'Content-Type' => 'text/event-stream',
