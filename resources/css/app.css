@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+@source '../**/*.tsx';
+@source '../**/*.ts';
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Tajawal", sans-serif;
+
+  --color-primary: #006D5B;
+  --color-primary-hover: #005A4A;
+  --color-primary-container: #008973;
+  --color-background: #F2F9F7;
+  --color-surface: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-accent: #F6AD55;
+  --color-text-dark: #2D3748;
+  --color-text-muted: #718096;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-zinc-900 font-sans antialiased;
+  }
+}
+
+.soft-glow {
+  box-shadow: 0px 4px 12px rgba(26, 26, 46, 0.05);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined.fill {
+  font-variation-settings: 'FILL' 1;
+}
+
+/* Dark Mode Styles */
+.dark body {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+.dark .bg-white {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+.bg-fathi {
+    background-color: #F8FAFB;
+}
+
+.dark .text-zinc-900, .dark .text-slate-900, .dark .text-zinc-800 {
+  color: #f1f5f9 !important;
+}
+
+.dark .text-zinc-500, .dark .text-slate-500, .dark .text-zinc-400 {
+  color: #94a3b8 !important;
+}
+
+.dark .bg-zinc-50, .dark .bg-fathi, .dark .bg-slate-50 {
+  background-color: #0f172a !important;
+}
+
+.dark .border-zinc-100, .dark .border-slate-100, .dark .border-zinc-200 {
+  border-color: #334155 !important;
+}
+
+.dark input, .dark select {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+
+.dark .shadow-sm, .dark .shadow-xl, .dark .shadow-2xl {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15) !important;
+}
