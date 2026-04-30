@@ -35,6 +35,15 @@ class FinancialPlanController extends Controller
         ]);
     }
 
+    public function resetPlan(Request $request)
+    {
+        $user = $request->user();
+        if ($user->financialPlan) {
+            $user->financialPlan->delete();
+        }
+        return response()->json(['status' => 'success']);
+    }
+
     public function generateClarification(Request $request)
     {
         $user = $request->user();

@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('savings-goals', SavingsGoalController::class);
     
     Route::get('/financial-plan', [FinancialPlanController::class, 'index']);
+    Route::post('/financial-plan/reset', [FinancialPlanController::class, 'resetPlan']);
     Route::post('/financial-plan/clarify', [FinancialPlanController::class, 'generateClarification']);
     Route::post('/financial-plan/clarify-next', [FinancialPlanController::class, 'generateNextClarification']);
     Route::post('/financial-plan/answer', [FinancialPlanController::class, 'answerClarification']);

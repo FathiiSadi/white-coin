@@ -141,6 +141,14 @@ export const FinancialPlan = () => {
     }
   };
 
+  const handleReset = async () => {
+      if (window.confirm('Are you sure you want to reset your financial plan and start over?')) {
+          setStatus('loading');
+          await api.post('/financial-plan/reset', {});
+          window.location.reload();
+      }
+  };
+
   if (status === 'loading') {
     return <div className="p-12 text-center text-slate-500">Loading your financial profile...</div>;
   }
@@ -152,6 +160,9 @@ export const FinancialPlan = () => {
           <h1 className="text-3xl font-bold text-slate-900">Financial Plan</h1>
           <p className="text-slate-500 font-medium mt-1">Your AI-optimized strategy.</p>
         </div>
+        <button onClick={handleReset} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-rose-500 bg-rose-50 rounded-xl hover:bg-rose-100 transition-colors">
+            Reset Plan
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
