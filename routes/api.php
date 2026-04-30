@@ -26,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::get('/financial-plan', [FinancialPlanController::class, 'index']);
     Route::post('/financial-plan/clarify', [FinancialPlanController::class, 'generateClarification']);
+    Route::post('/financial-plan/clarify-next', [FinancialPlanController::class, 'generateNextClarification']);
     Route::post('/financial-plan/answer', [FinancialPlanController::class, 'answerClarification']);
     Route::post('/financial-plan/save', [FinancialPlanController::class, 'savePlan']);
     Route::post('/financial-plan/chat', [FinancialPlanController::class, 'chat']);

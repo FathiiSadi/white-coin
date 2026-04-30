@@ -87,33 +87,50 @@ export const FinancialPlan = () => {
 
     try {
       if (status === 'clarifying') {
-        setPlanData('');
-        setStatus('generating');
-        let currentPlanData = '';
+        const userMessageCount = updatedMessages.filter(m => m.role === 'user').length;
         
-        await api.streamPost('/financial-plan/answer', { history: updatedMessages }, (chunk) => {
-          currentPlanData += chunk;
-          setPlanData(currentPlanData);
-        });
+        if (userMessageCount < 3) {
+            let currentContent = '';
+            setMessages([...updatedMessages, { role: 'assistant', content: '' }]);
+            
+            await api.streamPost('/financial-plan/clarify-next', { history: updatedMessages }, (chunk) => {
+              currentContent += chunk;
+              setMessages(prev => {
+                const newMessages = [...prev];
+                const lastIndex = newMessages.length - 1;
+                newMessages[lastIndex] = { ...newMessages[lastIndex], content: currentContent };
+                return newMessages;
+              });
+            });
+        } else {
+            setPlanData('');
+            setStatus('generating');
+            let currentPlanData = '';
+            
+            setMessages([...updatedMessages, { role: 'assistant', content: 'Thank you! I have all the information I need. I am crunching the numbers to generate your comprehensive financial dashboard now...' }]);
+            
+            await api.streamPost('/financial-plan/answer', { history: updatedMessages }, (chunk) => {
+              currentPlanData += chunk;
+              setPlanData(currentPlanData);
+            });
 
-        const newHistory = [...updatedMessages, { role: 'assistant', content: 'I have generated your financial plan based on your input. It is now locked. You can ask me to modify it.' }];
-        setMessages(newHistory);
-        
-        await savePlan(currentPlanData, newHistory);
-        
+            const newHistory = [...updatedMessages, { role: 'assistant', content: 'I have generated your financial dashboard. It is now locked. You can ask me to modify any numbers, goals, or targets!' }];
+            setMessages(newHistory);
+            
+            await savePlan(currentPlanData, newHistory);
+        }
       } else if (status === 'locked' || status === 'generating') {
-        // User wants to edit existing plan
         setPlanData(''); 
         let currentPlanData = '';
         
-        setMessages([...updatedMessages, { role: 'assistant', content: 'Updating your plan...' }]);
+        setMessages([...updatedMessages, { role: 'assistant', content: 'Updating your financial dashboard...' }]);
         
         await api.streamPost('/financial-plan/chat', { instruction: userMessage.content }, (chunk) => {
           currentPlanData += chunk;
           setPlanData(currentPlanData);
         });
 
-        const finalHistory = [...updatedMessages, { role: 'assistant', content: 'I have updated your financial plan.' }];
+        const finalHistory = [...updatedMessages, { role: 'assistant', content: 'I have updated your dashboard successfully.' }];
         setMessages(finalHistory);
         await savePlan(currentPlanData, finalHistory);
       }

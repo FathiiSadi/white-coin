@@ -41,6 +41,17 @@ class FinancialPlanController extends Controller
         return $this->planService->generateClarificationQuestions($user);
     }
 
+    public function generateNextClarification(Request $request)
+    {
+        $request->validate([
+            'history' => 'required|array',
+            'history.*.role' => 'required|string',
+            'history.*.content' => 'required|string',
+        ]);
+        $user = $request->user();
+        return $this->planService->generateNextClarificationQuestion($user, $request->input('history'));
+    }
+
     public function answerClarification(Request $request)
     {
         $request->validate([

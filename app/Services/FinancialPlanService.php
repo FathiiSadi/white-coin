@@ -72,8 +72,25 @@ class FinancialPlanService
     {
         $messages = [
             ['role' => 'system', 'content' => $this->getSystemPrompt($user)],
-            ['role' => 'user', 'content' => 'Review my financial data and ask me 3 to 4 detailed clarification questions to deeply understand my financial situation, risk tolerance, and long-term aspirations needed to create a comprehensive, highly personalized financial plan. Please always start with a friendly "Hello!" before asking the questions. Keep it professional but friendly.'],
+            ['role' => 'user', 'content' => 'Review my financial data and ask me exactly ONE detailed clarification question to deeply understand my financial situation, risk tolerance, or long-term aspirations. Please always start with a friendly "Hello!" before asking the question. Do NOT ask multiple questions at once.'],
         ];
+
+        return response()->stream($this->streamChatCompletion($messages), 200, [
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+            'Content-Type' => 'text/event-stream',
+        ]);
+    }
+
+    public function generateNextClarificationQuestion(User $user, $clarificationHistory)
+    {
+        $messages = [
+            ['role' => 'system', 'content' => $this->getSystemPrompt($user) . "\n\nINSTRUCTIONS: Ask exactly ONE follow-up clarification question. Do NOT ask multiple questions at once."],
+        ];
+
+        foreach ($clarificationHistory as $msg) {
+            $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+        }
 
         return response()->stream($this->streamChatCompletion($messages), 200, [
             'Cache-Control' => 'no-cache',
@@ -85,14 +102,14 @@ class FinancialPlanService
     public function generateFinancialPlan(User $user, $clarificationHistory)
     {
         $messages = [
-            ['role' => 'system', 'content' => $this->getSystemPrompt($user)],
+            ['role' => 'system', 'content' => $this->getSystemPrompt($user) . "\n\nINSTRUCTIONS: You must respond ONLY with a valid JSON object representing the financial plan. Do not include markdown formatting like ```json. The JSON must match exactly this structure:\n{\n  \"netWorth\": { \"assets\": number, \"liabilities\": number, \"total\": number },\n  \"cashFlow\": { \"income\": number, \"expenses\": number, \"surplus\": number, \"savingsRate\": number },\n  \"goals\": [ { \"name\": string, \"target\": number, \"current\": number, \"monthly\": number, \"progress\": number } ],\n  \"actions\": [ { \"title\": string, \"description\": string } ]\n}"],
         ];
 
         foreach ($clarificationHistory as $msg) {
             $messages[] = ['role' => $msg['role'], 'content' => $msg['content']];
         }
 
-        $messages[] = ['role' => 'user', 'content' => 'Based on my data and the clarifications, generate a comprehensive financial plan. Use markdown and the following sections: Net Worth Summary, Cash Flow & Budget, Savings Plan, Goal Tracker, Action Plan & Priorities.'];
+        $messages[] = ['role' => 'user', 'content' => 'Generate the final comprehensive financial plan based on all the data and clarifications. Output ONLY valid JSON.'];
 
         return response()->stream($this->streamChatCompletion($messages), 200, [
             'Cache-Control' => 'no-cache',
@@ -105,8 +122,8 @@ class FinancialPlanService
     {
         $user = $plan->user;
         $messages = [
-            ['role' => 'system', 'content' => $this->getSystemPrompt($user)],
-            ['role' => 'user', 'content' => "Here is my current financial plan:\n" . json_encode($plan->plan_data) . "\n\nInstruction for modification: {$instruction}\nRewrite the ENTIRE financial plan incorporating this modification. Use the exact same formatting and markdown sections as the original."],
+            ['role' => 'system', 'content' => $this->getSystemPrompt($user) . "\n\nINSTRUCTIONS: You must respond ONLY with a valid JSON object representing the financial plan. Do not include markdown formatting like ```json. The JSON must match exactly this structure:\n{\n  \"netWorth\": { \"assets\": number, \"liabilities\": number, \"total\": number },\n  \"cashFlow\": { \"income\": number, \"expenses\": number, \"surplus\": number, \"savingsRate\": number },\n  \"goals\": [ { \"name\": string, \"target\": number, \"current\": number, \"monthly\": number, \"progress\": number } ],\n  \"actions\": [ { \"title\": string, \"description\": string } ]\n}"],
+            ['role' => 'user', 'content' => "Here is my current financial plan (JSON):\n" . json_encode($plan->plan_data) . "\n\nInstruction for modification: {$instruction}\nRewrite the ENTIRE financial plan incorporating this modification. Output ONLY valid JSON."],
         ];
 
         return response()->stream($this->streamChatCompletion($messages), 200, [
