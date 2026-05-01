@@ -73,7 +73,7 @@ export const Dashboard = ({ setActiveTab }: DashboardProps) => {
 
   const fetchDashboardData = async () => {
     try {
-      const [txs, incomes, goals] = await Promise.all([
+      const [txs, incomes, goalsData] = await Promise.all([
         api.get('/transactions'),
         api.get('/income-sources'),
         api.get('/savings-goals')
@@ -99,40 +99,41 @@ export const Dashboard = ({ setActiveTab }: DashboardProps) => {
       setRoundUpSaved(calculateRoundUp(allTxs, currentRoundUpAmount));
 
       const totalIncome = incomes.reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0) || 5000;
-      const maxAllowedExpenses = totalIncome * 0.6;
       const actualExpenses = allTxs.reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0);
-      const displayExpenses = Math.min(actualExpenses, maxAllowedExpenses);
       
-      const balance = totalIncome - displayExpenses;
+      // Calculate real category data
+      const categoryMap: Record<string, number> = {};
+      allTxs.forEach((tx: any) => {
+        const cat = tx.category || 'Other';
+        categoryMap[cat] = (categoryMap[cat] || 0) + parseFloat(tx.amount);
+      });
+
+      const colors = ['#006D5B', '#F6AD55', '#9B2C2C', '#4299E1', '#6B46C1', '#E2E8F0'];
+      const realCategoryData = Object.entries(categoryMap).map(([name, value], i) => ({
+        name,
+        value: Math.round((value / actualExpenses) * 100),
+        color: colors[i % colors.length]
+      })).sort((a, b) => b.value - a.value);
+
+      setDynamicCategoryData(realCategoryData);
+
+      // Get saved amount from goals in localStorage
+      const storedGoals = JSON.parse(localStorage.getItem('user_goals') || '[]');
+      const totalSavedInGoals = storedGoals.reduce((acc: number, g: any) => acc + (parseFloat(g.current_amount) || 0), 0);
+
+      const balance = totalIncome - actualExpenses - totalSavedInGoals;
 
       const monthlyIncome = totalIncome;
-      const monthlyExpenses = displayExpenses;
+      const monthlyExpenses = actualExpenses;
 
-      const cats = [
-        { name: t('housing') || 'Housing', color: '#006D5B' },
-        { name: t('food_dining') || 'Food & Dining', color: '#F6AD55' },
-        { name: t('transport') || 'Transport', color: '#9B2C2C' },
-        { name: t('entertainment') || 'Entertainment', color: '#4299E1' },
-        { name: t('other') || 'Other', color: '#E2E8F0' },
-      ];
-      
-      let remainingPercent = 100;
-      const randomized = cats.map((cat, i) => {
-          if (i === cats.length - 1) return { ...cat, value: remainingPercent };
-          const val = Math.floor(Math.random() * (remainingPercent / 2)) + 5;
-          remainingPercent -= val;
-          return { ...cat, value: val };
-      });
-      setDynamicCategoryData(randomized);
-
-      const goal = goals[0] || { target_amount: 10000, name: 'Dream Home' };
-      const savingsProgress = Math.min(Math.round((balance / parseFloat(goal.target_amount)) * 100), 100);
+      const primaryGoal = storedGoals[0] || goalsData[0] || { target_amount: 10000, name: 'Savings', current_amount: 0 };
+      const totalProgress = Math.min(Math.round((totalSavedInGoals / parseFloat(primaryGoal.target_amount || '10000')) * 100), 100);
 
       setStats([
-        { id: 'balance', label: t('total_balance'), value: `$${balance.toLocaleString()}`, trend: '+0% vs last month', trendType: 'neutral', icon: Wallet, color: '#E6F1F0', iconColor: '#006D5B' },
-        { id: 'income', label: t('monthly_income'), value: `$${monthlyIncome.toLocaleString()}`, trend: `Safe Spend: $${maxAllowedExpenses.toLocaleString()}`, trendType: 'neutral', icon: ArrowUpRight, color: '#FFF5E6', iconColor: '#F6AD55' },
+        { id: 'balance', label: t('total_balance'), value: `$${balance.toLocaleString()}`, trend: 'Usable Balance', trendType: 'neutral', icon: Wallet, color: '#E6F1F0', iconColor: '#006D5B' },
+        { id: 'income', label: t('monthly_income'), value: `$${monthlyIncome.toLocaleString()}`, trend: `Safe Spend: $${(totalIncome * 0.6).toLocaleString()}`, trendType: 'neutral', icon: ArrowUpRight, color: '#FFF5E6', iconColor: '#F6AD55' },
         { id: 'expenses', label: t('monthly_expenses'), value: `$${monthlyExpenses.toLocaleString()}`, trend: `${Math.round((monthlyExpenses/monthlyIncome)*100)}% of income`, trendType: (monthlyExpenses/monthlyIncome) > 0.6 ? 'down' : 'up', icon: ArrowDownRight, color: '#FFE6E6', iconColor: '#F56565' },
-        { id: 'savings', label: t('savings_progress'), value: `${savingsProgress}%`, trend: `Goal: ${goal.name}`, trendType: 'neutral', icon: Target, color: '#E6F1F0', iconColor: '#006D5B', isProgress: true }
+        { id: 'savings', label: t('savings_progress'), value: `${totalProgress}%`, trend: `Goal: ${primaryGoal.name}`, trendType: 'neutral', icon: Target, color: '#E6F1F0', iconColor: '#006D5B', isProgress: true }
       ]);
     } catch (err) {
       console.error('Failed to fetch dashboard data', err);

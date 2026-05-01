@@ -1,26 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../lib/api';
 import { PlanPanel } from './PlanPanel';
 import { ChatPanel } from './ChatPanel';
+import { RefreshCw } from 'lucide-react';
 
 interface Message {
   role: string;
   content: string;
 }
 
+type Status = 'loading' | 'no_plan' | 'clarifying' | 'generating' | 'locked';
+
+// Immutable snapshot of original user answers — never mutated after first lock
+let originalUserContext: Message[] | null = null;
+
+interface SavingsGoal {
+  id: number;
+  name: string;
+  target_amount: number;
+  current_amount: number;
+}
+
 export const FinancialPlan = () => {
   const [planData, setPlanData] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  
-  const [status, setStatus] = useState<'loading' | 'no_plan' | 'clarifying' | 'generating' | 'locked'>('loading');
+  const [status, setStatus] = useState<Status>('loading');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [clarificationCount, setClarificationCount] = useState(0);
+  const [realGoals, setRealGoals] = useState<SavingsGoal[]>([]);
 
-  const loadedRef = React.useRef(false);
+  const loadedRef = useRef(false);
+
   useEffect(() => {
     if (!loadedRef.current) {
       loadedRef.current = true;
       loadPlan();
+      // Fetch real goal balances independently to override AI values
+      api.get('/savings-goals').then((res) => {
+        if (Array.isArray(res)) setRealGoals(res);
+        else if (Array.isArray(res.goals)) setRealGoals(res.goals);
+      }).catch(() => {});
     }
   }, []);
 
@@ -31,10 +51,16 @@ export const FinancialPlan = () => {
         setStatus('clarifying');
         startClarification();
       } else {
-        // Assume plan was saved before
-        setPlanData(typeof res.plan === 'string' ? res.plan : JSON.stringify(res.plan, null, 2) || '');
+        const planStr = typeof res.plan === 'string' ? res.plan : JSON.stringify(res.plan || '', null, 2);
+        setPlanData(planStr);
         setMessages(res.clarification_history || []);
-        setStatus(res.status);
+        setStatus(res.status as Status);
+        // Count prior user messages to know where clarification ended
+        const userMsgs = (res.clarification_history || []).filter((m: Message) => m.role === 'user');
+        setClarificationCount(userMsgs.length);
+        if (!originalUserContext) {
+          originalUserContext = [...(res.clarification_history || [])];
+        }
       }
     } catch (e) {
       console.error(e);
@@ -42,20 +68,27 @@ export const FinancialPlan = () => {
     }
   };
 
+  const savePlan = async (finalPlan: string, finalHistory: Message[], currentStatus: string) => {
+    try {
+      await api.post('/financial-plan/save', {
+        plan_data: finalPlan,
+        history: finalHistory,
+        status: currentStatus,
+      });
+    } catch (e) {
+      console.error('Failed to save plan', e);
+    }
+  };
+
   const startClarification = async () => {
     setIsStreaming(true);
     let currentContent = '';
     setMessages([{ role: 'assistant', content: '' }]);
-    
+
     try {
       await api.streamPost('/financial-plan/clarify', {}, (chunk) => {
         currentContent += chunk;
-        setMessages(prev => {
-          const newMessages = [...prev];
-          const lastIndex = newMessages.length - 1;
-          newMessages[lastIndex] = { ...newMessages[lastIndex], content: currentContent };
-          return newMessages;
-        });
+        setMessages([{ role: 'assistant', content: currentContent }]);
       });
       await savePlan('', [{ role: 'assistant', content: currentContent }], 'clarifying');
     } catch (e) {
@@ -65,22 +98,57 @@ export const FinancialPlan = () => {
     }
   };
 
-  const savePlan = async (finalPlan: string, finalHistory: Message[], currentStatus: string) => {
+  const generatePlan = async (history: Message[]) => {
+    setPlanData('');
+    setStatus('generating');
+    setIsStreaming(true);
+
+    const genMsg = { role: 'assistant', content: '✦ All inputs confirmed. Generating your personalized financial plan now...' };
+    const updatedHistory = [...history, genMsg];
+    setMessages(updatedHistory);
+
+    let currentPlanData = '';
     try {
-      await api.post('/financial-plan/save', {
-        plan_data: finalPlan,
-        history: finalHistory,
-        status: currentStatus
+      await api.streamPost('/financial-plan/answer', { history }, (chunk) => {
+        currentPlanData += chunk;
+        setPlanData(currentPlanData);
       });
+
+      // Validate that we got parseable JSON
+      const jsonStart = currentPlanData.indexOf('{');
+      const jsonEnd = currentPlanData.lastIndexOf('}');
+      if (jsonStart === -1 || jsonEnd === -1) {
+        throw new Error('AI response was not valid JSON');
+      }
+      const parsed = JSON.parse(currentPlanData.substring(jsonStart, jsonEnd + 1));
+
+      // One-line health summary as final chat message
+      const healthSummary = parsed.health_summary || 'Your plan has been generated.';
+      const finalMsg = { role: 'assistant', content: `✅ ${healthSummary}\n\nYour plan is ready below. You can ask me to modify anything — I'll recalculate all deadlines and your health score instantly.` };
+      const finalHistory = [...updatedHistory, finalMsg];
+      setMessages(finalHistory);
+      setStatus('locked');
+
+      // Lock original context on first generation
+      if (!originalUserContext) {
+        originalUserContext = [...history];
+      }
+
+      await savePlan(currentPlanData, finalHistory, 'locked');
     } catch (e) {
-      console.error("Failed to save plan", e);
+      console.error(e);
+      const errorMsg = { role: 'assistant', content: '⚠️ Something went wrong generating your plan. Please try again or reset.' };
+      setMessages(prev => [...prev, errorMsg]);
+      setStatus('clarifying');
+    } finally {
+      setIsStreaming(false);
     }
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
-    
-    const userMessage = { role: 'user', content: input };
+
+    const userMessage: Message = { role: 'user', content: input.trim() };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput('');
@@ -88,108 +156,152 @@ export const FinancialPlan = () => {
 
     try {
       if (status === 'clarifying') {
-        const userMessageCount = updatedMessages.filter(m => m.role === 'user').length;
-        
-        if (userMessageCount < 3) {
-            let currentContent = '';
-            setMessages([...updatedMessages, { role: 'assistant', content: '' }]);
-            
-            await api.streamPost('/financial-plan/clarify-next', { history: updatedMessages }, (chunk) => {
-              currentContent += chunk;
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const lastIndex = newMessages.length - 1;
-                newMessages[lastIndex] = { ...newMessages[lastIndex], content: currentContent };
-                return newMessages;
-              });
-            });
-            
-            const savedHistory = [...updatedMessages, { role: 'assistant', content: currentContent }];
-            await savePlan('', savedHistory, 'clarifying');
-            
-        } else {
-            setPlanData('');
-            setStatus('generating');
-            let currentPlanData = '';
-            
-            setMessages([...updatedMessages, { role: 'assistant', content: 'Thank you! I have all the information I need. I am generating your comprehensive financial plan now...' }]);
-            await savePlan('', [...updatedMessages, { role: 'assistant', content: 'Thank you! I have all the information I need. I am generating your comprehensive financial plan now...' }], 'generating');
-            
-            await api.streamPost('/financial-plan/answer', { history: updatedMessages }, (chunk) => {
-              currentPlanData += chunk;
-              setPlanData(currentPlanData);
-            });
+        const newCount = clarificationCount + 1;
+        setClarificationCount(newCount);
 
-            const newHistory = [...updatedMessages, { role: 'assistant', content: 'I have generated your financial plan. It is now locked. You can ask me to modify any numbers or goals!' }];
-            setMessages(newHistory);
-            
-            setStatus('locked');
-            await savePlan(currentPlanData, newHistory, 'locked');
+        // Validate: check if user provided numbers before we proceed
+        const hasNumbers = /\d/.test(userMessage.content);
+        const isLastClarification = newCount >= 2;
+
+        if (!isLastClarification) {
+          // Ask next clarification question
+          let currentContent = '';
+          const tempMsg: Message = { role: 'assistant', content: '' };
+          setMessages([...updatedMessages, tempMsg]);
+
+          await api.streamPost('/financial-plan/clarify-next', { history: updatedMessages }, (chunk) => {
+            currentContent += chunk;
+            setMessages(prev => {
+              const arr = [...prev];
+              arr[arr.length - 1] = { role: 'assistant', content: currentContent };
+              return arr;
+            });
+          });
+
+          const saved = [...updatedMessages, { role: 'assistant', content: currentContent }];
+          await savePlan('', saved, 'clarifying');
+        } else {
+          // Enough context — generate plan
+          setIsStreaming(false);
+          await generatePlan(updatedMessages);
+          return;
         }
-      } else if (status === 'locked' || status === 'generating') {
-        setPlanData(''); 
+      } else if (status === 'locked') {
+        // MODIFICATION MODE: replace plan, never append
+        setPlanData('');
+        setStatus('generating');
+
+        // Use original immutable context + current instruction
+        const modInstruction = `User wants to modify the plan. Instruction: "${userMessage.content}". Apply this to the existing plan, recalculate all deadlines and health score, explain what changed.`;
+
         let currentPlanData = '';
-        
-        setMessages([...updatedMessages, { role: 'assistant', content: 'Updating your financial plan...' }]);
-        await savePlan('', [...updatedMessages, { role: 'assistant', content: 'Updating your financial plan...' }], 'generating');
-        
-        await api.streamPost('/financial-plan/chat', { instruction: userMessage.content }, (chunk) => {
+        const thinkingMsg: Message = { role: 'assistant', content: '⏳ Updating your plan...' };
+        setMessages([...updatedMessages, thinkingMsg]);
+
+        await api.streamPost('/financial-plan/chat', { instruction: modInstruction }, (chunk) => {
           currentPlanData += chunk;
           setPlanData(currentPlanData);
         });
 
-        const finalHistory = [...updatedMessages, { role: 'assistant', content: 'I have updated your plan successfully.' }];
-        setMessages(finalHistory);
-        setStatus('locked');
-        await savePlan(currentPlanData, finalHistory, 'locked');
+        // Parse and validate
+        const jsonStart = currentPlanData.indexOf('{');
+        const jsonEnd = currentPlanData.lastIndexOf('}');
+
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const parsed = JSON.parse(currentPlanData.substring(jsonStart, jsonEnd + 1));
+          const aiExplanation = parsed.explanation || 'Your modification has been applied. All deadlines and your health score have been recalculated. Would you like to rebalance anything else?';
+          const impactMsg: Message = {
+            role: 'assistant',
+            content: aiExplanation,
+          };
+          const finalHistory = [...updatedMessages, impactMsg];
+          setMessages(finalHistory);
+          setStatus('locked');
+          await savePlan(currentPlanData, finalHistory, 'locked');
+        } else {
+          const fallbackMsg: Message = { role: 'assistant', content: '✅ Plan updated. Would you like to adjust anything else?' };
+          const finalHistory = [...updatedMessages, fallbackMsg];
+          setMessages(finalHistory);
+          setStatus('locked');
+          await savePlan(currentPlanData, finalHistory, 'locked');
+        }
       }
     } catch (e) {
       console.error(e);
+      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Something went wrong. Please try again.' }]);
     } finally {
       setIsStreaming(false);
     }
-  };
+  }, [input, isStreaming, messages, status, clarificationCount]);
 
   const handleReset = async () => {
-      if (window.confirm('Are you sure you want to reset your financial plan and start over?')) {
-          setStatus('loading');
-          await api.post('/financial-plan/reset', {});
-          window.location.reload();
-      }
+    if (!window.confirm('Reset your financial plan and start over?')) return;
+    try {
+      await api.post('/financial-plan/reset', {});
+      originalUserContext = null;
+      setPlanData('');
+      setMessages([]);
+      setStatus('clarifying');
+      setClarificationCount(0);
+      startClarification();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   if (status === 'loading') {
-    return <div className="p-12 text-center text-slate-500">Loading your financial profile...</div>;
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-500 font-bold">Loading your financial profile...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Page Header */}
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Financial Plan</h1>
-          <p className="text-slate-500 font-medium mt-1">Your AI-optimized strategy.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Financial Plan</h1>
+          <p className="text-slate-500 font-medium mt-1">AI-powered strategy, personalized for you.</p>
         </div>
-        <button onClick={handleReset} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-rose-500 bg-rose-50 rounded-xl hover:bg-rose-100 transition-colors">
-            Reset Plan
-        </button>
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest ${
+            status === 'locked' ? 'bg-emerald-50 text-emerald-600' :
+            status === 'generating' ? 'bg-amber-50 text-amber-600' :
+            'bg-slate-50 text-slate-500'
+          }`}>
+            {status === 'locked' ? '● Active Plan' : status === 'generating' ? '◎ Generating' : '○ Clarifying'}
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-7">
-          <PlanPanel 
-            planData={planData} 
-            isStreaming={isStreaming && (status === 'generating' || status === 'locked')} 
-            isLocked={status === 'locked'} 
+      {/* Main Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Plan Panel - wider */}
+        <div className="lg:col-span-7 xl:col-span-8">
+          <PlanPanel
+            planData={planData}
+            isStreaming={isStreaming && (status === 'generating')}
+            isLocked={status === 'locked'}
+            realGoals={realGoals}
           />
         </div>
-        <div className="lg:col-span-5">
-          <ChatPanel 
+
+        {/* Chat Panel - narrower */}
+        <div className="lg:col-span-5 xl:col-span-4 sticky top-8">
+          <ChatPanel
             messages={messages}
             input={input}
             setInput={setInput}
             onSendMessage={handleSendMessage}
             isStreaming={isStreaming}
             isDisabled={false}
+            status={status}
+            onReset={handleReset}
           />
         </div>
       </div>

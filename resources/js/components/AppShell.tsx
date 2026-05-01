@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  LayoutDashboard, 
-  Target, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Target,
+  Settings,
   Search,
   Bell,
   User,
@@ -19,7 +19,7 @@ import {
 import { api } from '../lib/api';
 import { useTranslation } from '../lib/LanguageContext';
 
-type Tab = 'dashboard' | 'plan' | 'settings_roundup' | 'settings_profile' | 'settings_dependents' | 'settings_income';
+type Tab = 'dashboard' | 'plan' | 'goals' | 'settings_roundup' | 'settings_profile' | 'settings_dependents' | 'settings_income';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -66,6 +66,7 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
   const mainMenuItems = [
     { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
     { id: 'plan', label: t('plan'), icon: Target },
+    { id: 'goals', label: t('goals') || 'Goals', icon: PieChart },
     { id: 'settings', label: t('settings'), icon: Settings },
   ];
 
@@ -94,17 +95,16 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
         {mainMenuItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => {
-              if (item.id === 'settings') {
-                 setActiveTab('settings_profile');
-              } else {
-                 setActiveTab(item.id as Tab);
-              }
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const targetTab = item.id === 'settings' ? 'settings_profile' : item.id as Tab;
+              setActiveTab(targetTab);
               setIsMobileMenuOpen(false);
             }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm ${
-              currentMainTab === item.id 
-                ? 'bg-[#E6F1F0] text-primary' 
+              currentMainTab === item.id
+                ? 'bg-[#E6F1F0] text-primary'
                 : 'text-slate-500 hover:bg-slate-50'
             }`}
           >
@@ -120,10 +120,10 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
       <div className="p-6 border-t border-slate-50">
         <div className="flex items-center gap-3 mb-6 p-2 rounded-2xl bg-slate-50">
             <div className="w-8 h-8 rounded-full border border-white overflow-hidden bg-white flex items-center justify-center">
-                <img 
-                  src={userImage} 
-                  className="w-full h-full object-cover" 
-                  alt="User" 
+                <img
+                  src={userImage}
+                  className="w-full h-full object-cover"
+                  alt="User"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = '/assets/logo.png';
                   }}
@@ -131,10 +131,10 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
             </div>
             <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-900 truncate">{userName}</p>
-                <p className="text-[10px] text-slate-400 font-medium">Free Plan</p>
+                <p className="text-[10px] text-slate-400 font-medium">Premium Plan</p>
             </div>
         </div>
-        <button 
+        <button
           onClick={onLogout}
           className="flex items-center gap-3 text-slate-400 hover:text-red-500 transition-colors text-sm font-medium w-full"
         >
@@ -155,7 +155,7 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
            </div>
            <span className="font-black text-slate-900 text-sm">The White Coin</span>
         </div>
-        <button 
+        <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-slate-500 hover:text-primary transition-colors"
         >
@@ -172,14 +172,14 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-[90]">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
               className="absolute inset-0 bg-black/20 backdrop-blur-sm"
             />
-            <motion.aside 
+            <motion.aside
               initial={{ x: language === 'Arabic' ? '100%' : '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: language === 'Arabic' ? '100%' : '-100%' }}
@@ -203,8 +203,8 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
                 key={item.id}
                 onClick={() => setActiveTab(item.id as Tab)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all font-medium text-[13px] ${
-                  activeTab === item.id 
-                    ? 'bg-white text-primary shadow-sm border border-slate-100' 
+                  activeTab === item.id
+                    ? 'bg-white text-primary shadow-sm border border-slate-100'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -223,8 +223,8 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
           <div className="flex-1 max-w-xl">
             <div className="relative group">
               <Search className={`absolute ${language === 'Arabic' ? 'right-4' : 'left-4'} top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors`} size={18} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search..."
                 className={`w-full bg-[#F1F5F9] border-none rounded-2xl py-3 ${language === 'Arabic' ? 'pr-12 pl-4' : 'pl-12 pr-4'} text-sm focus:ring-2 focus:ring-primary/20 transition-all`}
               />
@@ -242,9 +242,9 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
                 <p className="text-[10px] font-bold text-primary uppercase tracking-tighter mt-1">Premium Member</p>
               </div>
               <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-50 flex items-center justify-center">
-                <img 
-                  src={userImage} 
-                  alt="Avatar" 
+                <img
+                  src={userImage}
+                  alt="Avatar"
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = '/assets/logo.png';
@@ -263,8 +263,8 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
                 key={item.id}
                 onClick={() => setActiveTab(item.id as Tab)}
                 className={`whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                  activeTab === item.id 
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                  activeTab === item.id
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
                     : 'bg-slate-50 text-slate-400'
                 }`}
               >
@@ -296,12 +296,11 @@ export const AppShell = ({ children, activeTab, setActiveTab, onLogout }: AppShe
          {mainMenuItems.map((item) => (
            <button
              key={item.id}
-             onClick={() => {
-               if (item.id === 'settings') {
-                  setActiveTab('settings_profile');
-               } else {
-                  setActiveTab(item.id as Tab);
-               }
+             onClick={(e) => {
+               e.preventDefault();
+               e.stopPropagation();
+               const targetTab = item.id === 'settings' ? 'settings_profile' : item.id as Tab;
+               setActiveTab(targetTab);
              }}
              className={`flex flex-col items-center gap-1 transition-all ${
                currentMainTab === item.id ? 'text-primary' : 'text-slate-400'

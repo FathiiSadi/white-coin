@@ -49,8 +49,8 @@ export const LoginModal = ({ isOpen, onClose, onSuccess }: { isOpen: boolean, on
             </button>
 
             <div className="text-center mb-10">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-primary text-3xl">lock</span>
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 overflow-hidden border border-zinc-100 shadow-sm">
+                <img src="/assets/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
               </div>
               <h2 className="text-3xl font-display font-black text-zinc-900 mb-2">Welcome Back</h2>
               <p className="text-zinc-500 font-medium">Log in to manage your wealth.</p>

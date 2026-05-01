@@ -9,8 +9,10 @@ import { Dependents } from './components/Dependents';
 import { RoundUpSettings } from './components/RoundUpSettings';
 import { ProfileSettings } from './components/ProfileSettings';
 
+import { Goals } from './components/Goals';
+
 type AppState = 'landing' | 'onboarding' | 'app';
-type Tab = 'dashboard' | 'plan' | 'settings_roundup' | 'settings_profile' | 'settings_dependents' | 'settings_income';
+type Tab = 'dashboard' | 'plan' | 'goals' | 'settings_roundup' | 'settings_profile' | 'settings_dependents' | 'settings_income';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>(
@@ -49,6 +51,7 @@ export default function App() {
     >
       {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} />}
       {activeTab === 'plan' && <FinancialPlan />}
+      {activeTab === 'goals' && <Goals />}
       {activeTab === 'settings_roundup' && <RoundUpSettings />}
       {activeTab === 'settings_profile' && <ProfileSettings />}
       {activeTab === 'settings_dependents' && <Dependents />}

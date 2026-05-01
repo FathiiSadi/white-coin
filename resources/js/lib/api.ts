@@ -66,28 +66,28 @@ export const api = {
     
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
+    let buffer = '';
     
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value, { stream: true });
+        buffer += decoder.decode(value, { stream: true });
         
-        // Check if OpenAI returned an error JSON instead of a stream
-        if (chunk.includes('"error":')) {
+        if (buffer.includes('"error":')) {
             try {
-                const parsedError = JSON.parse(chunk);
+                const parsedError = JSON.parse(buffer);
                 throw new Error(parsedError.error?.message || 'OpenAI API Error');
             } catch (e) {
-                // If it's not valid JSON, ignore or throw generic
                 if (e.message !== 'Unexpected token') {
-                   console.error("OpenAI Error:", chunk);
+                   console.error("OpenAI Error:", buffer);
                 }
             }
         }
 
-        // The chunk might contain multiple "data: { ... }" lines from OpenAI
-        const lines = chunk.split('\n');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep the last incomplete line in the buffer
+        
         for (const line of lines) {
             if (line.startsWith('data: ') && line !== 'data: [DONE]') {
                 try {
@@ -97,7 +97,7 @@ export const api = {
                         onChunk(content);
                     }
                 } catch (e) {
-                    // Ignore parse errors for incomplete chunks
+                    console.error("Failed to parse line:", line, e);
                 }
             }
         }

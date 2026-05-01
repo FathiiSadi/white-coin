@@ -13,6 +13,7 @@ const translations: Translations = {
   // Navigation
   dashboard: { English: 'Detail View', Arabic: 'عرض التفاصيل' },
   plan: { English: 'Financial Plan', Arabic: 'الخطة المالية' },
+  goals: { English: 'Savings Goals', Arabic: 'أهداف الادخار' },
   roundup: { English: 'Round Up', Arabic: 'تقريب المعاملات' },
   settings: { English: 'Settings', Arabic: 'الإعدادات' },
   sign_out: { English: 'Sign Out', Arabic: 'تسجيل الخروج' },
