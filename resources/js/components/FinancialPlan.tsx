@@ -107,20 +107,37 @@ export const FinancialPlan = () => {
     const updatedHistory = [...history, genMsg];
     setMessages(updatedHistory);
 
-    let currentPlanData = '';
+    let streamBuffer = '';
     try {
+      // Collect full stream first — don't render partial JSON
       await api.streamPost('/financial-plan/answer', { history }, (chunk) => {
-        currentPlanData += chunk;
-        setPlanData(currentPlanData);
+        streamBuffer += chunk;
       });
 
       // Validate that we got parseable JSON
-      const jsonStart = currentPlanData.indexOf('{');
-      const jsonEnd = currentPlanData.lastIndexOf('}');
+      let jsonStart = -1;
+      let jsonEnd = -1;
+      let depth = 0;
+      for (let i = 0; i < streamBuffer.length; i++) {
+        if (streamBuffer[i] === '{') {
+          if (depth === 0) jsonStart = i;
+          depth++;
+        } else if (streamBuffer[i] === '}') {
+          depth--;
+          if (depth === 0 && jsonStart !== -1) {
+            jsonEnd = i;
+            break;
+          }
+        }
+      }
+
       if (jsonStart === -1 || jsonEnd === -1) {
         throw new Error('AI response was not valid JSON');
       }
-      const parsed = JSON.parse(currentPlanData.substring(jsonStart, jsonEnd + 1));
+      const parsed = JSON.parse(streamBuffer.substring(jsonStart, jsonEnd + 1));
+
+      // Only set planData once we have a complete, valid response
+      setPlanData(streamBuffer.substring(jsonStart, jsonEnd + 1));
 
       // One-line health summary as final chat message
       const healthSummary = parsed.health_summary || 'Your plan has been generated.';
@@ -134,7 +151,7 @@ export const FinancialPlan = () => {
         originalUserContext = [...history];
       }
 
-      await savePlan(currentPlanData, finalHistory, 'locked');
+      await savePlan(streamBuffer.substring(jsonStart, jsonEnd + 1), finalHistory, 'locked');
     } catch (e) {
       console.error(e);
       const errorMsg = { role: 'assistant', content: '⚠️ Something went wrong generating your plan. Please try again or reset.' };
@@ -187,43 +204,63 @@ export const FinancialPlan = () => {
           return;
         }
       } else if (status === 'locked') {
-        // MODIFICATION MODE: replace plan, never append
-        setPlanData('');
+        // MODIFICATION MODE: stream invisibly, only swap plan on completion
+        // DO NOT clear planData during streaming — keeps old plan visible
         setStatus('generating');
 
-        // Use original immutable context + current instruction
         const modInstruction = `User wants to modify the plan. Instruction: "${userMessage.content}". Apply this to the existing plan, recalculate all deadlines and health score, explain what changed.`;
 
-        let currentPlanData = '';
+        let streamBuffer = '';
         const thinkingMsg: Message = { role: 'assistant', content: '⏳ Updating your plan...' };
         setMessages([...updatedMessages, thinkingMsg]);
 
+        // Collect the full stream into a buffer — don't touch planData at all yet
         await api.streamPost('/financial-plan/chat', { instruction: modInstruction }, (chunk) => {
-          currentPlanData += chunk;
-          setPlanData(currentPlanData);
+          streamBuffer += chunk;
         });
 
-        // Parse and validate
-        const jsonStart = currentPlanData.indexOf('{');
-        const jsonEnd = currentPlanData.lastIndexOf('}');
+        // Stream is done — now find and validate the JSON
+        let jsonStart = -1;
+        let jsonEnd = -1;
+        let depth = 0;
+        for (let i = 0; i < streamBuffer.length; i++) {
+          if (streamBuffer[i] === '{') {
+            if (depth === 0) jsonStart = i;
+            depth++;
+          } else if (streamBuffer[i] === '}') {
+            depth--;
+            if (depth === 0 && jsonStart !== -1) {
+              jsonEnd = i;
+              break;
+            }
+          }
+        }
 
         if (jsonStart !== -1 && jsonEnd !== -1) {
-          const parsed = JSON.parse(currentPlanData.substring(jsonStart, jsonEnd + 1));
-          const aiExplanation = parsed.explanation || 'Your modification has been applied. All deadlines and your health score have been recalculated. Would you like to rebalance anything else?';
-          const impactMsg: Message = {
-            role: 'assistant',
-            content: aiExplanation,
-          };
-          const finalHistory = [...updatedMessages, impactMsg];
-          setMessages(finalHistory);
-          setStatus('locked');
-          await savePlan(currentPlanData, finalHistory, 'locked');
+          try {
+            const parsed = JSON.parse(streamBuffer.substring(jsonStart, jsonEnd + 1));
+            const aiExplanation = parsed.explanation || 'Your modification has been applied. All deadlines and your health score have been recalculated. Would you like to rebalance anything else?';
+            const impactMsg: Message = { role: 'assistant', content: aiExplanation };
+            const finalHistory = [...updatedMessages, impactMsg];
+
+            // Only now do we swap the plan — guaranteed valid JSON
+            setPlanData(streamBuffer.substring(jsonStart, jsonEnd + 1));
+            setMessages(finalHistory);
+            setStatus('locked');
+            await savePlan(streamBuffer.substring(jsonStart, jsonEnd + 1), finalHistory, 'locked');
+          } catch (parseErr) {
+            console.error('Plan parse failed after stream:', parseErr);
+            const errorMsg: Message = { role: 'assistant', content: '⚠️ Received an invalid plan response. Your previous plan is unchanged. Please try again.' };
+            setMessages([...updatedMessages, errorMsg]);
+            setStatus('locked');
+          }
         } else {
           const fallbackMsg: Message = { role: 'assistant', content: '✅ Plan updated. Would you like to adjust anything else?' };
           const finalHistory = [...updatedMessages, fallbackMsg];
+          setPlanData(streamBuffer);
           setMessages(finalHistory);
           setStatus('locked');
-          await savePlan(currentPlanData, finalHistory, 'locked');
+          await savePlan(streamBuffer, finalHistory, 'locked');
         }
       }
     } catch (e) {

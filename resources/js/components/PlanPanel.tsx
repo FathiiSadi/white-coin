@@ -44,19 +44,47 @@ interface PlanPanelProps {
 
 export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isLocked, realGoals = [] }) => {
   const data = useMemo(() => {
+    if (!planData) return null;
     try {
-      // Find JSON block in case there's garbage
-      const jsonStart = planData.indexOf('{');
-      const jsonEnd = planData.lastIndexOf('}');
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        return JSON.parse(planData.substring(jsonStart, jsonEnd + 1));
+      // Find all potential JSON blocks
+      const blocks: any[] = [];
+      let currentIdx = 0;
+      while (true) {
+        const start = planData.indexOf('{', currentIdx);
+        if (start === -1) break;
+        
+        // Find matching closing brace (simple version)
+        let depth = 0;
+        let end = -1;
+        for (let i = start; i < planData.length; i++) {
+          if (planData[i] === '{') depth++;
+          else if (planData[i] === '}') depth--;
+          
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+        }
+        
+        if (end !== -1) {
+          try {
+            const parsed = JSON.parse(planData.substring(start, end + 1));
+            blocks.push(parsed);
+          } catch (e) {}
+          currentIdx = end + 1;
+        } else {
+          break;
+        }
       }
-      return null;
+
+      // Find the block that looks most like a financial plan
+      return blocks.find(b => b.snapshot || b.goals || b.budget_split) || blocks[0] || null;
     } catch (e) {
       return null;
     }
   }, [planData]);
 
+  // No data at all + streaming = first-time generation loading screen
   if (!data && isStreaming) {
     return (
       <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl flex flex-col h-[850px] items-center justify-center p-12 text-center">
@@ -75,6 +103,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
     );
   }
 
+  // No data + not streaming = empty state
   if (!data) {
     return (
       <div className="bg-white rounded-[40px] border border-slate-100 shadow-xl flex flex-col h-[850px] items-center justify-center p-12 text-center text-slate-400">
@@ -89,10 +118,41 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
 
   const COLORS = ['#006D5B', '#F6AD55', '#9B2C2C', '#4299E1'];
   
+  const snapshot = useMemo(() => {
+    const raw = data?.snapshot || data?.financial_snapshot || {};
+    const parse = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
+    };
+    return {
+      income: parse(raw.income ?? raw.monthly_income),
+      expenses: parse(raw.expenses ?? raw.monthly_expenses),
+      savings: parse(raw.savings ?? raw.monthly_savings ?? raw.savings_committed),
+      free_cash: parse(raw.free_cash ?? raw.free_cash_flow),
+      health_score: parseInt(String(raw.health_score ?? raw.score ?? 0).replace(/[$,]/g, '')) || 0,
+    };
+  }, [data]);
+
+  const budget_split = useMemo(() => {
+    const raw = data?.budget_split || data?.budget || {};
+    const parse = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        return parseFloat(String(val).replace(/[%,]/g, '')) || 0;
+    };
+    return {
+      needs_percent: parse(raw.needs_percent ?? raw.needs_p ?? raw.needs),
+      wants_percent: parse(raw.wants_percent ?? raw.wants_p ?? raw.wants),
+      savings_percent: parse(raw.savings_percent ?? raw.savings_p ?? raw.savings),
+      flags: raw.flags || [],
+    };
+  }, [data]);
+  
   const budgetData = [
-    { name: 'Needs', value: data.budget_split.needs_percent, color: '#006D5B' },
-    { name: 'Wants', value: data.budget_split.wants_percent, color: '#F6AD55' },
-    { name: 'Savings', value: data.budget_split.savings_percent, color: '#4299E1' },
+    { name: 'Needs', value: budget_split.needs_percent, color: '#006D5B' },
+    { name: 'Wants', value: budget_split.wants_percent, color: '#F6AD55' },
+    { name: 'Savings', value: budget_split.savings_percent, color: '#4299E1' },
   ];
 
   // Inject real saved balances from DB into AI goals — AI output is unreliable for this field
@@ -102,25 +162,32 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
     );
     return {
       ...g,
-      saved: real ? real.current_amount : (g.saved ?? 0),
-      target: real ? real.target_amount : (g.target ?? 0),
+      saved: parseFloat(String(real ? real.current_amount : (g.saved ?? 0)).replace(/[$,]/g, '')) || 0,
+      target: parseFloat(String(real ? real.target_amount : (g.target ?? 0)).replace(/[$,]/g, '')) || 0,
     };
   });
 
   const goalsData = goals.map((g: any) => ({
     name: g.name,
     Saved: g.saved,
-    Remaining: Math.max(0, g.target - g.saved),
+    Remaining: Math.max(0, (g.target || 0) - (g.saved || 0)),
   }));
 
   // Simple growth projection for line chart
   const projectionData = Array.from({ length: 12 }, (_, i) => ({
     month: `Month ${i + 1}`,
-    Balance: data.snapshot.savings + (data.snapshot.income - data.snapshot.expenses) * (i + 1)
+    Balance: (snapshot.savings || 0) + ((snapshot.income || 0) - (snapshot.expenses || 0)) * (i + 1)
   }));
 
   return (
     <div className="space-y-6">
+      {/* Updating overlay banner — shown while AI is regenerating */}
+      {isStreaming && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 flex items-center gap-3">
+          <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <p className="text-sm font-bold text-amber-700">Updating your plan — please wait...</p>
+        </div>
+      )}
       {/* Health Header */}
       <div className="bg-gradient-to-r from-primary to-primary-hover p-1 rounded-[32px] shadow-lg">
         <div className="bg-white rounded-[28px] p-4 flex items-center justify-between">
@@ -128,11 +195,11 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
               <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
                  <CheckCircle2 size={24} />
               </div>
-              <p className="font-black text-slate-900 text-sm tracking-tight">{data.health_summary}</p>
+              <p className="font-black text-slate-900 text-sm tracking-tight">{data.health_summary || 'No health summary available'}</p>
            </div>
            <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Health Score</span>
-              <span className="text-lg font-black text-primary">{data.snapshot.health_score}/100</span>
+              <span className="text-lg font-black text-primary">{(snapshot.health_score || 0)}/100</span>
            </div>
         </div>
       </div>
@@ -148,15 +215,15 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                {[
-                 { label: 'Monthly Income', val: data.snapshot.income, icon: ArrowUpRight, col: 'emerald' },
-                 { label: 'Total Expenses', val: data.snapshot.expenses, icon: ArrowDownRight, col: 'rose' },
-                 { label: 'Savings Committed', val: data.snapshot.savings, icon: TrendingUp, col: 'primary' },
-                 { label: 'Free Cash Flow', val: data.snapshot.free_cash, icon: Sparkles, col: 'amber' }
+                 { label: 'Monthly Income', val: snapshot.income, icon: ArrowUpRight, col: 'emerald' },
+                 { label: 'Total Expenses', val: snapshot.expenses, icon: ArrowDownRight, col: 'rose' },
+                 { label: 'Savings Committed', val: snapshot.savings, icon: TrendingUp, col: 'primary' },
+                 { label: 'Free Cash Flow', val: snapshot.free_cash, icon: Sparkles, col: 'amber' }
                ].map((s, i) => (
                  <div key={i} className="bg-slate-50/50 p-5 rounded-3xl border border-slate-100 hover:border-primary/20 transition-colors">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
                     <div className="flex items-center justify-between">
-                       <span className="text-lg font-black text-slate-900">${s.val.toLocaleString()}</span>
+                       <span className="text-lg font-black text-slate-900">${(s.val || 0).toLocaleString()}</span>
                        <s.icon size={16} className={`text-${s.col}-500`} />
                     </div>
                  </div>
@@ -187,11 +254,11 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
                           </span>
                        </div>
                        <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden mb-2">
-                          <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min((g.saved / g.target) * 100, 100)}%` }} />
+                          <div className="h-full bg-primary rounded-full" style={{ width: `${g.target > 0 ? Math.min((g.saved / g.target) * 100, 100) : 0}%` }} />
                        </div>
                        <div className="flex justify-between text-[10px] font-black text-slate-500">
-                          <span>${g.saved.toLocaleString()}</span>
-                          <span>Target: ${g.target.toLocaleString()}</span>
+                          <span>${(g.saved || 0).toLocaleString()}</span>
+                          <span>Target: ${(g.target || 0).toLocaleString()}</span>
                        </div>
                     </div>
                   ))}
@@ -232,11 +299,11 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
                      </div>
                    ))}
                 </div>
-                {data.budget_split.flags && data.budget_split.flags.length > 0 && (
+                {budget_split.flags && budget_split.flags.length > 0 && (
                   <div className="mt-4 p-4 bg-rose-50 rounded-2xl border border-rose-100">
                     <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-1"><AlertTriangle size={12}/> Budget Flags</p>
                     <ul className="space-y-1">
-                      {data.budget_split.flags.map((f: string, i: number) => (
+                      {budget_split.flags.map((f: string, i: number) => (
                         <li key={i} className="text-sm font-medium text-rose-700 leading-tight flex items-start gap-2">
                            <span className="mt-1">•</span> {f}
                         </li>
@@ -269,7 +336,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ planData, isStreaming, isL
                 <h3 className="text-xl font-black text-slate-900 tracking-tight">Risk & Recommendations</h3>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {data.risks_recommendations.map((tip: string, i: number) => (
+                {(data.risks_recommendations || []).map((tip: string, i: number) => (
                   <div key={i} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                      <div className="absolute -right-2 -top-2 w-12 h-12 bg-slate-50 rounded-full group-hover:scale-150 transition-transform" />
                      <p className="text-sm font-medium text-slate-600 leading-relaxed relative z-10">{tip}</p>
